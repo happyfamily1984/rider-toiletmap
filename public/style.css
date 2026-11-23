@@ -497,3 +497,5 @@ input, textarea { font: inherit; }
 
 /* 지도 밖으로 나간 마커 때문에 화면이 옆으로 밀리지 않게 */
 .map { overflow: hidden; }
+.link-btn { display: block; margin: 14px auto 0; border: 0; background: none; font-size: 13px; text-decoration: underline; color: var(--muted); }
+.link-btn.danger-link { color: var(--danger); }

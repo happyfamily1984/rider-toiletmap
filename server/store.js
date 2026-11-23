@@ -354,6 +354,20 @@ class FileStore {
     return { user: u };
   }
 
+  // 계정 삭제: 프로필·점수·투표 기록을 지우고, 올린 화장실은 작성자 없이 남김
+  async deleteUser(id) {
+    const before = this.users.length;
+    this.users = this.users.filter((u) => u.id !== id);
+    this.votes = this.votes.filter((v) => v.userId !== id);
+    this.points = this.points.filter((p) => p.userId !== id);
+    for (const t of this.items) {
+      if (t.ownerId === id) t.ownerId = null;
+      if (t.passwordBy === id) t.passwordBy = null;
+    }
+    this.save();
+    return this.users.length < before;
+  }
+
   async leaderboard(region, limit, userId) {
     const inScope = (u) => !region || (u.sido === region.sido && u.sigungu === region.sigungu);
     const list = this.users.filter(inScope)
@@ -755,6 +769,18 @@ class PgStore {
       if (err.code === '23505') return { error: 'nickname' };
       throw err;
     }
+  }
+
+  // 계정 삭제: 프로필·점수·투표 기록을 지우고, 올린 화장실은 작성자 없이 남김
+  async deleteUser(id) {
+    return this.tx(async (client) => {
+      await client.query('DELETE FROM toilet_votes WHERE user_id = $1', [id]);
+      await client.query('DELETE FROM points_log WHERE user_id = $1', [id]);
+      await client.query('UPDATE toilets SET owner_id = NULL WHERE owner_id = $1', [id]);
+      await client.query('UPDATE toilets SET password_by = NULL WHERE password_by = $1', [id]);
+      const { rowCount } = await client.query('DELETE FROM users WHERE id = $1', [id]);
+      return rowCount > 0;
+    });
   }
 
   async leaderboard(region, limit, userId) {

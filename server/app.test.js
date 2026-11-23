@@ -316,6 +316,15 @@ for (const backend of BACKENDS) {
       assert.strictEqual((await b('POST', '/api/me/profile', { ...prof, nickname: '번개라이더' })).status, 409);
       // 닉네임·지역은 나중에 바꿀 수 있음
       assert.strictEqual((await a('POST', '/api/me/profile', { ...prof, sido: '서울특별시', sigungu: '강남구' })).body.user.sigungu, '강남구');
+      // 계정 삭제: 프로필이 지워지고 같은 닉네임을 다른 사람이 쓸 수 있음, 올린 화장실은 남음
+      const tid = (await a('POST', '/api/toilets', sample)).body.toilet.id;
+      assert.strictEqual((await a('DELETE', '/api/me')).status, 200);
+      assert.strictEqual((await a('GET', '/api/me')).body.loggedIn, false);
+      assert.strictEqual((await b('POST', '/api/me/profile', { ...prof, nickname: '번개라이더' })).status, 200);
+      const kept = (await b('GET', `/api/toilets/${tid}`)).body.toilet;
+      assert.strictEqual(kept.ownerName, '');
+      assert.strictEqual(kept.canVote, false);
+      assert.strictEqual((await a('POST', '/api/auth/google', { credential: 'tok:111' })).body.user, null);
       await a('POST', '/api/auth/logout');
       assert.strictEqual((await a('GET', '/api/me')).body.loggedIn, false);
     } finally {

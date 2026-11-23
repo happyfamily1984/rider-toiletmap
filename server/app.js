@@ -180,6 +180,15 @@ function createApp(config, store) {
     res.json({ loggedIn: true, user: userView(out.user) });
   }));
 
+  // 계정 삭제 (구글 플레이 정책: 앱 안에서 계정 삭제 가능해야 함)
+  app.delete('/api/me', wrap(async (req, res) => {
+    const id = users.userIdOf(req);
+    if (!id) return res.status(401).json({ error: '구글 계정으로 로그인해 주세요.', needLogin: true });
+    await store.deleteUser(id);
+    users.logout(res);
+    res.json({ ok: true });
+  }));
+
   // 순위표: ?sido=..&sigungu=.. 이면 그 지역만
   app.get('/api/leaderboard', wrap(async (req, res) => {
     const sido = String(req.query.sido || '');
