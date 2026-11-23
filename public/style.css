@@ -499,3 +499,37 @@ input, textarea { font: inherit; }
 .map { overflow: hidden; z-index: 0; } /* 네이버 지도 컨트롤(확대 버튼·로고)이 바텀시트 위로 올라오지 않게 */
 .link-btn { display: block; margin: 14px auto 0; border: 0; background: none; font-size: 13px; text-decoration: underline; color: var(--muted); }
 .link-btn.danger-link { color: var(--danger); }
+
+/* ---------- 버튼 크기·모양 다듬기 (작고 깔끔하게) ---------- */
+.topbar { padding: calc(10px + var(--safe-top)) 12px 0; gap: 6px; align-items: center; }
+.near-btn {
+  height: 40px; padding: 0 14px 0 11px; gap: 5px; border: 0; border-radius: 999px;
+  font-size: 14px; font-weight: 800; letter-spacing: -0.2px;
+  background: rgba(255, 255, 255, 0.96); color: var(--brand-dark);
+  box-shadow: 0 1px 2px rgba(16, 36, 26, 0.08), 0 4px 14px rgba(16, 36, 26, 0.12);
+}
+.near-btn .ico { width: 16px; height: 16px; }
+.near-btn.active { background: var(--brand); color: #fff; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 12px; border: 0;
+  background: rgba(255, 255, 255, 0.96); color: #2a332e;
+  box-shadow: 0 1px 2px rgba(16, 36, 26, 0.08), 0 4px 14px rgba(16, 36, 26, 0.12);
+}
+.icon-btn .ico { width: 20px; height: 20px; }
+.rank-btn { color: #e0a100; }
+.menu { top: calc(58px + var(--safe-top)); }
+.fab {
+  width: 44px; height: 44px; border: 0; background: rgba(255, 255, 255, 0.96); color: var(--brand-dark);
+  box-shadow: 0 1px 2px rgba(16, 36, 26, 0.08), 0 4px 14px rgba(16, 36, 26, 0.12);
+}
+.fab .ico { width: 22px; height: 22px; }
+.add-btn {
+  padding: 11px 18px 11px 15px; gap: 6px; font-size: 15px; font-weight: 800; letter-spacing: -0.2px;
+  box-shadow: 0 2px 4px rgba(20, 148, 87, 0.2), 0 6px 16px rgba(20, 148, 87, 0.28);
+}
+.add-btn .ico { width: 18px; height: 18px; }
+.locate-btn, .fabs { bottom: calc(20px + var(--safe-bottom)); }
+@supports (backdrop-filter: blur(8px)) {
+  .near-btn:not(.active), .icon-btn, .fab { background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(10px); }
+}
+.hint { top: calc(60px + var(--safe-top)); font-size: 13px; padding: 7px 14px; }

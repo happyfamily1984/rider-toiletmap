@@ -1108,12 +1108,32 @@
     }
   }
 
+  // 안드로이드 앱이면 위치 권한 창·설정 화면을 앱이 직접 열어 줌
+  function canFixLocation() {
+    return !!(window.RiderApp && window.RiderApp.fixLocation);
+  }
+  var pendingLocation = null;
+  window.onLocationFix = function (state) {
+    var retry = pendingLocation;
+    pendingLocation = null;
+    if (!retry) return;
+    if (state === 'granted') { closeSheet(); getPosition(retry); } else locationHelp(1, retry);
+  };
+
   function getPosition(onOk, quiet) {
     if (!navigator.geolocation) return quiet ? null : locationHelp(0, onOk);
     navigator.geolocation.getCurrentPosition(function (pos) {
       onOk(pos.coords.latitude, pos.coords.longitude);
     }, function (err) {
-      if (!quiet) locationHelp(err && err.code, onOk);
+      if (quiet) return;
+      var code = err && err.code;
+      // 권한 없음(1)·위치 꺼짐(2): 앱이 권한 창이나 설정 화면을 바로 띄움
+      if (canFixLocation() && (code === 1 || code === 2)) {
+        pendingLocation = onOk;
+        window.RiderApp.fixLocation(false);
+        return;
+      }
+      locationHelp(code, onOk);
     }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   }
 
@@ -1131,6 +1151,9 @@
     } else if (code === 3) {
       title = '위치를 찾는 데 시간이 걸리고 있어요';
       body = '<p>실내라면 창가나 밖에서 잠시 후 다시 시도해 주세요.</p>';
+    } else if (canFixLocation()) {
+      title = '위치 권한을 허용해 주세요';
+      body = '<p>가까운 화장실을 찾으려면 위치가 필요해요.<br>아래 버튼을 누르고 <b>앱 사용 중에만 허용</b>을 골라 주세요.</p>';
     } else if (ourApp) {
       title = '앱에 위치 권한이 없어요';
       body = '<ol><li>휴대폰 <b>설정</b> → <b>애플리케이션</b> → <b>라이더 화장실맵</b></li>' +
@@ -1142,11 +1165,21 @@
     openSheet(
       sheetHead(title, ICON.pin) + '<div class="loc-help">' + body + '</div>' +
       '<div class="actions"><button type="button" class="btn" data-act="cancel">닫기</button>' +
-        '<button type="button" class="btn primary" data-act="retry">다시 시도</button></div>'
+        '<button type="button" class="btn primary" data-act="retry">' +
+        (canFixLocation() && code !== 3 ? '위치 허용하기' : '다시 시도') + '</button></div>'
     );
     $('sheet-body').onclick = function (e) {
       if (e.target.closest('button[data-act="cancel"], button[data-act="close"]')) closeSheet();
-      if (e.target.closest('button[data-act="retry"]')) { closeSheet(); getPosition(retry); }
+      if (e.target.closest('button[data-act="retry"]')) {
+        if (canFixLocation() && code !== 3) {
+          // 권한 창(또는 막혀 있으면 앱 설정 화면)을 바로 연다
+          pendingLocation = retry;
+          window.RiderApp.fixLocation(true);
+          return;
+        }
+        closeSheet();
+        getPosition(retry);
+      }
     };
   }
 
