@@ -444,6 +444,10 @@ class FileStore {
   async count() {
     return this.items.length;
   }
+
+  async countPublic() {
+    return this.items.filter((t) => t.source === 'public').length;
+  }
 }
 
 /**
@@ -858,31 +862,37 @@ class PgStore {
     }));
   }
 
+  // 한 번에 여러 줄을 넣는다 (5만 곳도 빠르게). 이용자가 수정한 화장실은 덮어쓰지 않음
   async importPublic(rows) {
-    let added = 0;
-    let updated = 0;
-    await this.tx(async (client) => {
-      for (const r of rows) {
-        const res = await client.query(
-          `INSERT INTO toilets (id, name, address, open_hours, lat, lng, source, source_key, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, 'public', $7, 'public-data')
-           ON CONFLICT (source_key) DO UPDATE SET
-             name = EXCLUDED.name, address = EXCLUDED.address, open_hours = EXCLUDED.open_hours,
-             lat = EXCLUDED.lat, lng = EXCLUDED.lng
-           WHERE toilets.updated_at = toilets.created_at
-           RETURNING (xmax = 0) AS inserted`,
-          [crypto.randomUUID(), r.name, r.address, r.openHours, r.lat, r.lng, r.sourceKey]
-        );
-        // 이용자가 수정한 화장실은 건너뜀 (행이 안 돌아옴)
-        if (!res.rows.length) continue;
-        if (res.rows[0].inserted) added++; else updated++;
-      }
-    });
-    return { added, updated };
+    // 같은 묶음 안에 같은 키가 두 번 있으면 ON CONFLICT 가 실패하므로 하나만 남김
+    const uniq = [...new Map(rows.map((r) => [r.sourceKey, r])).values()];
+    if (!uniq.length) return { added: 0, updated: 0 };
+    const res = await this.pool.query(
+      `INSERT INTO toilets (id, name, address, open_hours, lat, lng, source, source_key, created_by)
+       SELECT u.id, u.name, u.address, u.open_hours, u.lat, u.lng, 'public', u.source_key, 'public-data'
+       FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[], $5::float8[], $6::float8[], $7::text[])
+         AS u(id, name, address, open_hours, lat, lng, source_key)
+       ON CONFLICT (source_key) DO UPDATE SET
+         name = EXCLUDED.name, address = EXCLUDED.address, open_hours = EXCLUDED.open_hours,
+         lat = EXCLUDED.lat, lng = EXCLUDED.lng
+       WHERE toilets.updated_at = toilets.created_at
+       RETURNING (xmax = 0) AS inserted`,
+      [
+        uniq.map(() => crypto.randomUUID()), uniq.map((r) => r.name), uniq.map((r) => r.address || ''),
+        uniq.map((r) => r.openHours || ''), uniq.map((r) => r.lat), uniq.map((r) => r.lng), uniq.map((r) => r.sourceKey),
+      ]
+    );
+    const added = res.rows.filter((r) => r.inserted).length;
+    return { added, updated: res.rows.length - added };
   }
 
   async count() {
     const { rows } = await this.pool.query('SELECT count(*)::int AS n FROM toilets');
+    return rows[0].n;
+  }
+
+  async countPublic() {
+    const { rows } = await this.pool.query("SELECT count(*)::int AS n FROM toilets WHERE source = 'public'");
     return rows[0].n;
   }
 

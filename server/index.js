@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { createApp } = require('./app');
 const { createStore } = require('./store');
+const { seedPublicIfEmpty } = require('./seed');
 
 const env = process.env;
 
@@ -47,6 +48,7 @@ store
     createApp(config, store).listen(port, () => {
       console.log(`라이더 화장실맵 서버 실행 중: http://localhost:${port}`);
       console.log(env.DATABASE_URL ? '저장소: PostgreSQL (DATABASE_URL)' : '저장소: JSON 파일');
+      seedPublicIfEmpty(store).catch((err) => console.error('공공데이터 넣기 실패:', err.message));
     });
   })
   .catch((err) => {

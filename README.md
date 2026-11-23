@@ -54,6 +54,15 @@ DATABASE_URL=... node scripts/public-toilets.js 전국공중화장실표준데�
 [전국공중화장실표준데이터](https://www.data.go.kr/data/15012892/standard.do) CSV (UTF-8 / EUC-KR). 여러 번 실행해도 되고,
 이용자가 수정한 화장실은 덮어쓰지 않습니다.
 
+### 서버 시작 때 자동으로 넣기 (좌표 없는 CSV 포함)
+
+좌표가 없는 CSV 는 네이버 지오코딩으로 위도·경도를 채운 뒤 `--seed` 로 `seed/public-toilets.json.gz` 를 만들어 커밋합니다.
+서버는 시작할 때 DB 에 공공데이터 화장실이 하나도 없으면 이 파일을 자동으로 넣습니다 (백그라운드, 약 1~2분).
+
+```
+node scripts/public-toilets.js 좌표추가.csv --seed seed/public-toilets.json.gz
+```
+
 ## 실행 / 테스트
 
 ```
