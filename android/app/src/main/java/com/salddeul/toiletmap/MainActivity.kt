@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.location.LocationManager
+import android.provider.Settings
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -124,13 +126,7 @@ class MainActivity : Activity() {
                 } else {
                     pendingGeoOrigin = origin
                     pendingGeoCallback = callback
-                    requestPermissions(
-                        arrayOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        ),
-                        REQ_LOCATION
-                    )
+                    requestLocationPermission(REQ_LOCATION)
                 }
             }
         }
@@ -209,17 +205,89 @@ class MainActivity : Activity() {
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    // ---- 위치 권한 쉽게 켜기 ----
+    // 권한 창을 띄운 시각과, 사용자가 창에서 직접 거절한 시각 (바로 또 창을 띄우지 않기 위해)
+    private var permRequestedAt = 0L
+    private var userDeniedAt = 0L
+    // 설정 화면에서 돌아오면 웹에 결과를 알려줌
+    private var waitingForSettings = false
+
+    private fun requestLocationPermission(code: Int) {
+        permRequestedAt = System.currentTimeMillis()
+        getPreferences(MODE_PRIVATE).edit().putBoolean("locAsked", true).apply()
+        requestPermissions(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            code
+        )
+    }
+
+    private fun isLocationOn(): Boolean {
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) lm.isLocationEnabled
+        else lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    }
+
+    /**
+     * 웹에서 위치를 못 가져왔을 때 부름.
+     * 권한이 없으면 권한 창, 예전에 "다시 묻지 않음"으로 막혔으면 앱 설정 화면, 위치(GPS)가 꺼져 있으면 위치 설정 화면을 연다.
+     * force=false 이면, 사용자가 방금 권한 창에서 거절한 경우 다시 띄우지 않고 웹에 "denied" 를 알려줌.
+     */
+    private fun fixLocationNow(force: Boolean) {
+        if (!onOurSite()) return
+        if (!hasLocationPermission()) {
+            if (!force && System.currentTimeMillis() - userDeniedAt < 5000) {
+                notifyLocation("denied")
+                return
+            }
+            val askedBefore = getPreferences(MODE_PRIVATE).getBoolean("locAsked", false)
+            if (!askedBefore || shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                requestLocationPermission(REQ_LOCATION_FIX)
+            } else {
+                openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+            }
+            return
+        }
+        if (!isLocationOn()) {
+            openSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            return
+        }
+        notifyLocation("granted")
+    }
+
+    private fun openSettings(intent: Intent) {
+        try {
+            waitingForSettings = true
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            waitingForSettings = false
+            notifyLocation("denied")
+        }
+    }
+
+    private fun notifyLocation(state: String) {
+        webView.evaluateJavascript("window.onLocationFix && window.onLocationFix('$state')", null)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+        // 창이 실제로 떠서 사용자가 거절했는지 (막혀 있으면 창 없이 바로 거절로 돌아옴)
+        if (!granted && System.currentTimeMillis() - permRequestedAt > 600) userDeniedAt = System.currentTimeMillis()
         if (requestCode == REQ_LOCATION) {
-            val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
             pendingGeoCallback?.invoke(pendingGeoOrigin, granted, false)
             pendingGeoCallback = null
             pendingGeoOrigin = null
+        }
+        if (requestCode == REQ_LOCATION_FIX) {
+            if (granted && !isLocationOn()) {
+                openSettings(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            } else {
+                notifyLocation(if (granted) "granted" else "denied")
+            }
         }
     }
 
@@ -228,6 +296,11 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun googleSignIn() {
             runOnUiThread { startGoogleSignIn() }
+        }
+
+        @JavascriptInterface
+        fun fixLocation(force: Boolean) {
+            runOnUiThread { fixLocationNow(force) }
         }
     }
 
@@ -321,6 +394,10 @@ class MainActivity : Activity() {
         super.onResume()
         adView?.resume()
         webView.onResume()
+        if (waitingForSettings) {
+            waitingForSettings = false
+            notifyLocation(if (hasLocationPermission() && isLocationOn()) "granted" else "denied")
+        }
     }
 
     override fun onPause() {
@@ -342,6 +419,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQ_LOCATION = 1001
+        private const val REQ_LOCATION_FIX = 1002
         // 개발용(디버그 빌드) 테스트 광고 ID — 실제 앱(release)은 BuildConfig.ADMOB_BANNER_ID 사용
         private const val TEST_BANNER_ID = "ca-app-pub-3940256099942544/9214589741"
     }
