@@ -496,6 +496,6 @@ input, textarea { font: inherit; }
 .vote-box .form-note { margin: 8px 0 0; }
 
 /* 지도 밖으로 나간 마커 때문에 화면이 옆으로 밀리지 않게 */
-.map { overflow: hidden; }
+.map { overflow: hidden; z-index: 0; } /* 네이버 지도 컨트롤(확대 버튼·로고)이 바텀시트 위로 올라오지 않게 */
 .link-btn { display: block; margin: 14px auto 0; border: 0; background: none; font-size: 13px; text-decoration: underline; color: var(--muted); }
 .link-btn.danger-link { color: var(--danger); }
