@@ -14,6 +14,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { inKorea, cleanText, LIMITS } = require('../server/store');
 
+// 이동화장실(행사용 등 임시)은 제외
+const SKIP_KINDS = new Set(['이동화장실']);
+
 // 큰따옴표로 감싼 값(쉼표·줄바꿈 포함)을 처리하는 간단한 CSV 파서
 function parseCsv(text) {
   const rows = [];
@@ -67,6 +70,7 @@ function parsePublicCsv(input) {
     jibun: findCol(header, ['소재지지번주소']),
     open: findCol(header, ['개방시간']),
     openDetail: findCol(header, ['개방시간상세']),
+    kind: findCol(header, ['구분명', '구분']),
     lat: findCol(header, ['WGS84위도', '위도']),
     lng: findCol(header, ['WGS84경도', '경도']),
   };
@@ -76,6 +80,7 @@ function parsePublicCsv(input) {
   const out = [];
   const seen = new Set();
   for (const r of rows.slice(1)) {
+    if (col.kind >= 0 && SKIP_KINDS.has(r[col.kind])) continue;
     const lat = Number(r[col.lat]);
     const lng = Number(r[col.lng]);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || !inKorea(lat, lng)) continue;
@@ -102,6 +107,15 @@ async function main() {
   const rows = parsePublicCsv(fs.readFileSync(file));
   console.log(`읽은 화장실: ${rows.length}곳`);
   if (process.argv.includes('--dry')) return;
+  // --seed <파일.json.gz>: DB 대신 서버가 시작할 때 자동으로 넣을 데이터 파일로 저장
+  const seedIdx = process.argv.indexOf('--seed');
+  if (seedIdx > 0) {
+    const out = process.argv[seedIdx + 1];
+    const compact = rows.map((r) => [r.sourceKey, r.name, r.address, r.openHours, r.lat, r.lng]);
+    fs.writeFileSync(out, require('zlib').gzipSync(JSON.stringify(compact), { level: 9 }));
+    console.log(`저장: ${out}`);
+    return;
+  }
   const { createStore } = require('../server/store');
   const path = require('path');
   const store = createStore({

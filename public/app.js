@@ -555,7 +555,8 @@
             (first ? '' : '<button type="button" class="btn" data-act="logout">로그아웃</button>') +
             '<button type="submit" class="btn primary">' + ICON.check + (first ? '시작하기' : '저장') + '</button>' +
           '</div>' +
-        '</form>'
+        '</form>' +
+        (first ? '' : '<button type="button" class="link-btn danger-link" data-act="delete-account">계정 삭제</button>')
       );
       var form = $('profile-form');
       function fillSigungu(selected) {
@@ -570,6 +571,11 @@
         var btn = e.target.closest('button[data-act]');
         if (!btn) return;
         if (btn.getAttribute('data-act') === 'close') { closeSheet(); if (state.addMode && !state.me.user) setAddMode(false); }
+        if (btn.getAttribute('data-act') === 'delete-account') {
+          if (!confirm('계정을 삭제할까요?\n닉네임·점수·투표 기록이 모두 지워지고 되돌릴 수 없어요.\n(올린 화장실 정보는 작성자 없이 남아요)')) return;
+          api('DELETE', '/api/me').then(function () { setMe(null); closeSheet(); toast('계정을 삭제했어요'); })
+            .catch(function (e3) { toast(e3.message); });
+        }
         if (btn.getAttribute('data-act') === 'logout') {
           api('POST', '/api/auth/logout').then(function () { setMe(null); closeSheet(); toast('로그아웃했어요'); });
         }

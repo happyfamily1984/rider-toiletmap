@@ -8,6 +8,8 @@ const path = require('path');
 const { createApp } = require('./app');
 const { createStore, parseBox } = require('./store');
 const { parsePublicCsv } = require('../scripts/public-toilets');
+const { seedPublicIfEmpty } = require('./seed');
+const zlib = require('zlib');
 
 // TEST_DATABASE_URL 이 있으면 PostgreSQL 저장소로도 같은 테스트를 돌린다
 const BACKENDS = ['file'];
@@ -107,6 +109,7 @@ test('공공데이터 CSV 읽기', () => {
     '1,공중화장실,"서울역, 공중화장실",서울 중구 한강대로 405,,24시간,,37.5547,126.9706,2025-01-01',
     '2,공중화장실,위치없음,,,,,,,2025-01-01',
     '3,개방화장실,제주 화장실,제주시 어딘가,,09:00~18:00,평일만,33.5,126.5,2025-01-01',
+    '4,이동화장실,행사장,제주시,,,,33.6,126.6,2025-01-01',
   ].join('\n');
   const rows = parsePublicCsv(csv);
   assert.strictEqual(rows.length, 2);
@@ -313,6 +316,15 @@ for (const backend of BACKENDS) {
       assert.strictEqual((await b('POST', '/api/me/profile', { ...prof, nickname: '번개라이더' })).status, 409);
       // 닉네임·지역은 나중에 바꿀 수 있음
       assert.strictEqual((await a('POST', '/api/me/profile', { ...prof, sido: '서울특별시', sigungu: '강남구' })).body.user.sigungu, '강남구');
+      // 계정 삭제: 프로필이 지워지고 같은 닉네임을 다른 사람이 쓸 수 있음, 올린 화장실은 남음
+      const tid = (await a('POST', '/api/toilets', sample)).body.toilet.id;
+      assert.strictEqual((await a('DELETE', '/api/me')).status, 200);
+      assert.strictEqual((await a('GET', '/api/me')).body.loggedIn, false);
+      assert.strictEqual((await b('POST', '/api/me/profile', { ...prof, nickname: '번개라이더' })).status, 200);
+      const kept = (await b('GET', `/api/toilets/${tid}`)).body.toilet;
+      assert.strictEqual(kept.ownerName, '');
+      assert.strictEqual(kept.canVote, false);
+      assert.strictEqual((await a('POST', '/api/auth/google', { credential: 'tok:111' })).body.user, null);
       await a('POST', '/api/auth/logout');
       assert.strictEqual((await a('GET', '/api/me')).body.loggedIn, false);
     } finally {
@@ -412,6 +424,25 @@ for (const backend of BACKENDS) {
       await adm('POST', '/api/admin/login', { password: 'test-admin-pw' });
       assert.strictEqual((await adm('DELETE', `/api/admin/toilets/${id}`)).status, 200);
       assert.strictEqual(await score(c), 0);
+    } finally {
+      close();
+    }
+  });
+
+  test(`[${backend}] 서버 시작 때 공공데이터 자동 넣기 (비어 있을 때 한 번만)`, async () => {
+    const { store, client, close } = await startServer(backend);
+    try {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'seed-')), 's.json.gz');
+      const rows = [['s1', '서울역 화장실', '서울 중구', '24시간', 37.5547, 126.9706], ['s2', '시청 화장실', '서울 중구', '', 37.566, 126.977],
+        ['s2', '중복', '', '', 37.566, 126.977]];
+      fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(rows)));
+      const logs = [];
+      assert.deepStrictEqual(await seedPublicIfEmpty(store, file, (m) => logs.push(m)), { added: 2 });
+      assert.deepStrictEqual(await seedPublicIfEmpty(store, file), { skipped: 'already' });
+      assert.deepStrictEqual(await seedPublicIfEmpty(store, file + '.none'), { skipped: 'no-file' });
+      const list = (await client()('GET', '/api/toilets?box=37.55,126.96,37.57,126.98')).body.toilets;
+      assert.strictEqual(list.length, 2);
+      assert.ok(list.every((t) => t.source === 'public'));
     } finally {
       close();
     }
