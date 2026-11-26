@@ -25,4 +25,17 @@ async function seedPublicIfEmpty(store, file = SEED_FILE, log = console.log) {
   return { added };
 }
 
-module.exports = { seedPublicIfEmpty, SEED_FILE };
+// 예전 '안양 과천 화장실맵'에 멤버들이 입력한 화장실 (비밀번호·별점·설명 포함)
+const ANYANG_FILE = path.join(__dirname, '..', 'seed', 'anyang-toilets.json');
+
+/** 옮겨 온 화장실이 하나도 없을 때만 넣는다 (운영자가 지운 것이 다시 살아나지 않게) */
+async function seedAnyangIfMissing(store, file = ANYANG_FILE, log = console.log) {
+  if (!fs.existsSync(file)) return { skipped: 'no-file' };
+  if ((await store.countBySourcePrefix('anyang:')) > 0) return { skipped: 'already' };
+  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const { added } = await store.importUser(rows, 'anyang-import');
+  log(`안양 과천 화장실맵에서 화장실 ${added}곳을 옮겨 왔습니다.`);
+  return { added };
+}
+
+module.exports = { seedPublicIfEmpty, seedAnyangIfMissing, SEED_FILE, ANYANG_FILE };

@@ -462,6 +462,28 @@ class FileStore {
   async countPublic() {
     return this.items.filter((t) => t.source === 'public').length;
   }
+
+  // 다른 곳에서 옮겨 온 '라이더 등록' 화장실 넣기. 이미 있는 키는 건드리지 않음
+  async importUser(rows, createdBy) {
+    let added = 0;
+    for (const r of rows) {
+      if (this.items.some((x) => x.sourceKey === r.sourceKey)) continue;
+      const at = r.createdAt || new Date().toISOString();
+      this.items.push({
+        id: crypto.randomUUID(), name: r.name, address: r.address || '', description: r.description || '',
+        password: r.password || '', rating: r.rating || DEFAULT_RATING, openHours: '', lat: r.lat, lng: r.lng,
+        source: 'user', sourceKey: r.sourceKey, hidden: false, reportCount: 0, upVotes: 0, downVotes: 0,
+        ownerId: null, passwordBy: null, createdBy, createdAt: at, updatedAt: at,
+      });
+      added++;
+    }
+    this.save();
+    return { added };
+  }
+
+  async countBySourcePrefix(prefix) {
+    return this.items.filter((t) => (t.sourceKey || '').startsWith(prefix)).length;
+  }
 }
 
 /**
@@ -919,6 +941,34 @@ class PgStore {
 
   async countPublic() {
     const { rows } = await this.pool.query("SELECT count(*)::int AS n FROM toilets WHERE source = 'public'");
+    return rows[0].n;
+  }
+
+  // 다른 곳에서 옮겨 온 '라이더 등록' 화장실 넣기. 이미 있는 키는 건드리지 않음
+  async importUser(rows, createdBy) {
+    if (!rows.length) return { added: 0 };
+    const res = await this.pool.query(
+      `INSERT INTO toilets (id, name, address, description, password, rating, lat, lng, source, source_key, created_by,
+         created_at, updated_at)
+       SELECT u.id, u.name, u.address, u.description, u.password, u.rating, u.lat, u.lng, 'user', u.source_key, $10,
+         u.at, u.at
+       FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[], $6::int[], $7::float8[], $8::float8[],
+         $9::text[], $11::timestamptz[]) AS u(id, name, address, description, password, rating, lat, lng, source_key, at)
+       ON CONFLICT (source_key) DO NOTHING`,
+      [
+        rows.map(() => crypto.randomUUID()), rows.map((r) => r.name), rows.map((r) => r.address || ''),
+        rows.map((r) => r.description || ''), rows.map((r) => r.password || ''), rows.map((r) => r.rating || DEFAULT_RATING),
+        rows.map((r) => r.lat), rows.map((r) => r.lng), rows.map((r) => r.sourceKey), createdBy,
+        rows.map((r) => r.createdAt || new Date().toISOString()),
+      ]
+    );
+    return { added: res.rowCount };
+  }
+
+  async countBySourcePrefix(prefix) {
+    const { rows } = await this.pool.query(
+      'SELECT count(*)::int AS n FROM toilets WHERE source_key LIKE $1', [prefix.replace(/[%_]/g, '') + '%']
+    );
     return rows[0].n;
   }
 

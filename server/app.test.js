@@ -8,7 +8,7 @@ const path = require('path');
 const { createApp } = require('./app');
 const { createStore, parseBox } = require('./store');
 const { parsePublicCsv } = require('../scripts/public-toilets');
-const { seedPublicIfEmpty } = require('./seed');
+const { seedPublicIfEmpty, seedAnyangIfMissing } = require('./seed');
 const zlib = require('zlib');
 
 // TEST_DATABASE_URL 이 있으면 PostgreSQL 저장소로도 같은 테스트를 돌린다
@@ -443,6 +443,26 @@ for (const backend of BACKENDS) {
       const list = (await client()('GET', '/api/toilets?box=37.55,126.96,37.57,126.98')).body.toilets;
       assert.strictEqual(list.length, 2);
       assert.ok(list.every((t) => t.source === 'public'));
+    } finally {
+      close();
+    }
+  });
+
+  test(`[${backend}] 안양 과천 화장실맵 데이터 옮기기 (없을 때 한 번만)`, async () => {
+    const { store, client, close } = await startServer(backend);
+    try {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'anyang-')), 'a.json');
+      fs.writeFileSync(file, JSON.stringify([
+        { sourceKey: 'anyang:1', name: '과천 상가', address: '과천시', description: '2층', password: '1234', rating: 4, lat: 37.4304, lng: 126.9991, createdAt: '2026-10-11T06:43:27.326Z' },
+        { sourceKey: 'anyang:2', name: '안양 건물', address: '', description: '', password: '', rating: 3, lat: 37.394, lng: 126.957 },
+      ]));
+      assert.deepStrictEqual(await seedAnyangIfMissing(store, file, () => {}), { added: 2 });
+      assert.deepStrictEqual(await seedAnyangIfMissing(store, file), { skipped: 'already' });
+      const t = (await client()('GET', '/api/toilets?box=37.42,126.99,37.44,127.01')).body.toilets[0];
+      assert.deepStrictEqual([t.name, t.password, t.rating, t.source, t.description], ['과천 상가', '1234', 4, 'user', '2층']);
+      assert.strictEqual(t.createdAt, '2026-10-11T06:43:27.326Z');
+      // 올린 사람이 없으므로 투표 대상 아님
+      assert.strictEqual((await client()('GET', `/api/toilets/${t.id}`)).body.toilet.canVote, false);
     } finally {
       close();
     }
