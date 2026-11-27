@@ -533,3 +533,14 @@ input, textarea { font: inherit; }
   .near-btn:not(.active), .icon-btn, .fab { background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(10px); }
 }
 .hint { top: calc(60px + var(--safe-top)); font-size: 13px; padding: 7px 14px; }
+
+/* ---------- 배민플러스 가입문의 ---------- */
+.join-item .ico { color: #12a39c; }
+.join-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
+.join-region { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px; border-radius: 16px;
+  background: #e9f8f7; color: #0b6f6a; text-decoration: none; border: 1.5px solid #bfe9e6; }
+.join-region:active { background: #d4f2f0; }
+.jr-name { font-size: 20px; font-weight: 900; }
+.jr-call { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: #fff;
+  background: #12a39c; padding: 9px 14px; border-radius: 999px; }
+.jr-call .ico { width: 16px; height: 16px; }
