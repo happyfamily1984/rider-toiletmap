@@ -49,6 +49,7 @@
     flag: SVG + 'fill="currentColor"><path d="M5 21V4h9l.5 2H20v9h-6.5l-.5-2H7v8z"/></svg>',
     clock: SVG + 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
     search: SVG + 'fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>',
+    phone: SVG + 'fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>',
     trophy: SVG + 'fill="currentColor"><path d="M7 3h10v2h3.5v2.5A4.5 4.5 0 0 1 16.6 12 5.5 5.5 0 0 1 13 14.8V17h3v2H8v-2h3v-2.2A5.5 5.5 0 0 1 7.4 12 4.5 4.5 0 0 1 3.5 7.5V5H7zM6 20h12v1.5H6z"/></svg>',
     google: '<svg class="ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>',
     user: SVG + 'fill="currentColor"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg>',
@@ -965,7 +966,31 @@
     };
   }
 
+  // ---------------- 배민플러스 가입문의 ----------------
+  // 지역을 고르면 담당 번호로 전화 연결 (지역은 여기에 추가)
+  var JOIN_REGIONS = [
+    { name: '안양·과천', phone: '010-7449-6511' },
+  ];
+
+  function showJoin() {
+    openSheet(
+      sheetHead('배민플러스 가입문의', ICON.phone) +
+      '<p class="sheet-sub">누르면 담당자에게 바로 전화로 연결돼요.</p>' +
+      '<div class="join-list">' +
+        JOIN_REGIONS.map(function (r) {
+          return '<a class="join-region" href="tel:' + r.phone.replace(/[^0-9]/g, '') + '">' +
+            '<span class="jr-name">' + escapeHtml(r.name) + '</span>' +
+            '<span class="jr-call">' + ICON.phone + escapeHtml(r.phone) + '</span></a>';
+        }).join('') +
+      '</div>'
+    );
+    $('sheet-body').onclick = function (e) {
+      if (e.target.closest('button[data-act="close"]')) closeSheet();
+    };
+  }
+
   // ---------------- 운영자 (신고 처리) ----------------
+  // 앱 메뉴에는 없음. 운영자는 웹 브라우저에서 주소 끝에 #admin 을 붙여 들어온다.
   var REASON_TEXT = {};
   REASONS.forEach(function (r) { REASON_TEXT[r[0]] = r[1]; });
 
@@ -1337,7 +1362,7 @@
       var btn = e.target.closest('button, a');
       if (!btn) return;
       $('menu').hidden = true;
-      if (btn.id === 'admin-btn') openAdmin();
+      if (btn.id === 'join-btn') showJoin();
       if (btn.id === 'me-btn') showMe();
       if (btn.id === 'rank-menu-btn') showLeaderboard(state.me.user ? 'region' : 'all');
     });
@@ -1359,6 +1384,8 @@
         return;
       }
       $('main').hidden = false;
+      if (location.hash === '#admin') openAdmin();
+      window.addEventListener('hashchange', function () { if (location.hash === '#admin') openAdmin(); });
       refreshMe().then(function () {
         // 처음 열면 한 번 로그인 안내 (나중에 해도 됨)
         var asked = false;
