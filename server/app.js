@@ -38,6 +38,9 @@ function validateProfile(body) {
 // 비동기 라우트의 오류를 Express 오류 처리로 넘긴다
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// 배포 버전 (Render 가 넣어 주는 커밋 값, 없으면 서버 시작 시각)
+const APP_VERSION = process.env.RENDER_GIT_COMMIT || String(Date.now());
+
 // 한 번에 지도에 보내는 최대 화장실 수
 const BOX_LIMIT = 500;
 
@@ -125,6 +128,8 @@ function createApp(config, store) {
       bounds: KOREA_BOUNDS,
       points: POINTS,
       contactEmail: config.contactEmail || '',
+      // 배포마다 바뀌는 값. 앱이 돌아왔을 때 이 값이 바뀌었으면 화면을 새로 고친다
+      version: APP_VERSION,
     });
   });
 

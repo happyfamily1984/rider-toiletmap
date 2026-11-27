@@ -1371,6 +1371,19 @@
     });
   }
 
+  // 앱을 내렸다가 다시 열었을 때 서버에 새 버전이 올라와 있으면 화면을 새로 고친다
+  // (열려 있는 입력창이 있으면 쓰던 내용이 날아가지 않게 다음 기회로 미룸)
+  var lastVersionCheck = 0;
+  function checkNewVersion() {
+    if (!state.config || Date.now() - lastVersionCheck < 60000) return;
+    lastVersionCheck = Date.now();
+    api('GET', '/api/config').then(function (c) {
+      if (c.version && state.config.version && c.version !== state.config.version && $('sheet').hidden) {
+        location.reload();
+      }
+    }).catch(function () {});
+  }
+
   // ---------------- 시작 ----------------
   function start() {
     setupMainUi();
@@ -1403,7 +1416,9 @@
 
     // 앱으로 돌아왔을 때 다른 사람이 수정한 내용 반영
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible' && state.map) scheduleLoad();
+      if (document.visibilityState !== 'visible') return;
+      if (state.map) scheduleLoad();
+      checkNewVersion();
     });
   }
 
