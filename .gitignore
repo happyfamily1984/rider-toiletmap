@@ -11,3 +11,7 @@ android/.idea/
 *.apk
 *.keystore
 *.jks
+# 스토어 이미지 생성 결과물
+tools/store/raw*.png
+tools/store/screenshot-*.png
+tools/store/feature-graphic.png
